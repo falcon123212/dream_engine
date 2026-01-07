@@ -1,0 +1,19 @@
+# Rust / Cargo
+/target
+Cargo.lock
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Dream Engine Assets
+# On ignore les gros binaires bruts, on ne garde que les shaders
+assets/raw/*.usdc
+assets/raw/*.abc
+assets/raw/*.fbx
+!assets/shaders/**

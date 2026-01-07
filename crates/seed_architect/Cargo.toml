@@ -1,0 +1,13 @@
+[package]
+name = "seed_architect"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+dream_core = { path = "../dream_core" }
+glam = { workspace = true }
+tobj = "4.0"
+winit = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+dream_forge = { path = "../dream_forge" }

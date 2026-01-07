@@ -1,0 +1,19 @@
+[package]
+name = "lucid_runtime"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Externes
+ash = { workspace = true }
+glam = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+winit = { workspace = true }
+shaderc = "0.8"
+bytemuck = { version = "1.13", features = ["derive"] }
+
+# Internes (Vérifie qu'ils ne sont présents qu'UNE SEULE FOIS)
+dream_forge = { path = "../dream_forge" }
+dream_core = { path = "../dream_core" }
+seed_architect = { path = "../seed_architect" }

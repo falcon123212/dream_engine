@@ -1,0 +1,10 @@
+[package]
+name = "dream_core"  # <--- C'était "dream_forge" ici, c'est l'erreur.
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# On utilise les versions définies dans le workspace racine
+glam = { workspace = true }
+bytemuck = { workspace = true }
+bitflags = { workspace = true }
