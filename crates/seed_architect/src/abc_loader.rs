@@ -21,7 +21,7 @@ impl AbcStream {
         }
     }
 
-    pub fn load_frame(&self, frame_index: u32) -> AbcFrame {
+    pub fn load_frame(&self, _frame_index: u32) -> AbcFrame {
         // Extraction réelle des données binaire du fichier .abc
         // Pour l'instant, on simule le retour des positions d'atomes
         AbcFrame {

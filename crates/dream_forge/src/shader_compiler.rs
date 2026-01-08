@@ -2,6 +2,33 @@ use ash::vk;
 use shaderc::{Compiler, CompileOptions, ShaderKind};
 use std::fs;
 use std::path::Path;
+use std::fmt;
+
+/// Erreur de compilation shader
+#[derive(Debug)]
+pub enum ShaderError {
+    IoError(std::io::Error),
+    CompileError(String),
+    VulkanError(vk::Result),
+}
+
+impl fmt::Display for ShaderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ShaderError::IoError(e) => write!(f, "IO Error: {}", e),
+            ShaderError::CompileError(msg) => write!(f, "Compile Error: {}", msg),
+            ShaderError::VulkanError(e) => write!(f, "Vulkan Error: {:?}", e),
+        }
+    }
+}
+
+impl std::error::Error for ShaderError {}
+
+impl From<std::io::Error> for ShaderError {
+    fn from(err: std::io::Error) -> Self {
+        ShaderError::IoError(err)
+    }
+}
 
 pub struct ShaderCompiler {
     compiler: Compiler,
@@ -14,14 +41,21 @@ impl ShaderCompiler {
         }
     }
 
+    /// Compile un fichier shader GLSL en module Vulkan
+    /// 
+    /// # Returns
+    /// - `Ok(ShaderModule)` si la compilation réussit
+    /// - `Err(ShaderError)` si lecture, compilation ou création échoue
     pub fn compile_file(
         &self,
         device: &ash::Device,
         path: &Path,
         kind: ShaderKind,
-    ) -> vk::ShaderModule {
-        let source = fs::read_to_string(path).expect("❌ Impossible de lire le shader");
-        let file_name = path.file_name().unwrap().to_str().unwrap();
+    ) -> Result<vk::ShaderModule, ShaderError> {
+        let source = fs::read_to_string(path)?;
+        let file_name = path.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown.glsl");
 
         // 1. Options de compilation (Optimisation max pour 2030)
         let mut options = CompileOptions::new().unwrap();
@@ -36,14 +70,13 @@ impl ShaderCompiler {
             _ => {},
         }
 
-        // 2. Compilation en SPIR-V avec gestion d'erreurs
-        let artifact = match self.compiler.compile_into_spirv(&source, kind, file_name, "main", Some(&options)) {
-            Ok(binary) => binary,
-            Err(e) => {
+        // 2. Compilation en SPIR-V
+        let artifact = self.compiler
+            .compile_into_spirv(&source, kind, file_name, "main", Some(&options))
+            .map_err(|e| {
                 log::error!("🔴 [SHADER ERROR] Impossible de compiler {}: {}", file_name, e);
-                return vk::ShaderModule::null(); 
-            }
-        };
+                ShaderError::CompileError(e.to_string())
+            })?;
 
         // 3. Création du module Vulkan
         let create_info = vk::ShaderModuleCreateInfo::builder()
@@ -51,7 +84,13 @@ impl ShaderCompiler {
 
         unsafe {
             device.create_shader_module(&create_info, None)
-                .expect("❌ Échec vkCreateShaderModule")
+                .map_err(ShaderError::VulkanError)
         }
+    }
+}
+
+impl Default for ShaderCompiler {
+    fn default() -> Self {
+        Self::new()
     }
 }

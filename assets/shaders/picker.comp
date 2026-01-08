@@ -1,0 +1,54 @@
+#version 460
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_shader_atomic_float : require
+
+layout(local_size_x = 256) in;
+
+layout(buffer_reference, std430) readonly buffer Atoms { float data[]; };
+layout(buffer_reference, std430) buffer Result { 
+    uint atom_index; 
+    uint min_dist_bits; 
+};
+
+layout(push_constant) uniform Constants {
+    uint64_t atoms_ptr;     // 0..8
+    uint64_t result_ptr;    // 8..16
+    uint vertex_count;      // 16..20
+    
+    // PADDING OBLIGATOIRE (20..32) pour atteindre l'alignement 16
+    
+    layout(offset = 32) vec3 ray_origin; // 32..44
+    
+    // PADDING INTERNE (44..48)
+    
+    layout(offset = 48) vec3 ray_dir;    // 48..60
+} pc;
+
+void main() {
+    uint g_idx = gl_GlobalInvocationID.x;
+    if (g_idx >= pc.vertex_count) return;
+
+    Atoms atoms = Atoms(pc.atoms_ptr);
+    Result res = Result(pc.result_ptr);
+
+    uint base = g_idx * 6;
+    vec3 pos = vec3(atoms.data[base], atoms.data[base+1], atoms.data[base+2]);
+
+    vec3 v = pos - pc.ray_origin;
+    float t = dot(v, pc.ray_dir);
+    
+    if (t <= 0.0) return;
+
+    vec3 nearest = pc.ray_origin + t * pc.ray_dir;
+    float dist = length(pos - nearest);
+
+    // Seuil de clic
+    if (dist < 0.1) {
+        uint dist_bits = floatBitsToUint(t);
+        uint old = atomicMin(res.min_dist_bits, dist_bits);
+        if (dist_bits < old) {
+            res.atom_index = g_idx;
+        }
+    }
+}

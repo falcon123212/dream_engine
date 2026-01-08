@@ -1,6 +1,6 @@
 use ash::{vk, Entry, Instance, Device};
 use ash::extensions::ext;
-use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
+use raw_window_handle::HasRawDisplayHandle;
 use std::ffi::{CStr, CString};
 use std::mem::ManuallyDrop;
 use log::{info, warn, error};
@@ -46,9 +46,10 @@ impl ForgeContext {
             // Extension de Debug
             extension_names.push(ext::DebugUtils::name().as_ptr());
 
-            // Couches de validation (Validation Layers)
-            let layer_names = [CStr::from_bytes_with_nul(b"VK_LAYER_KHRONOS_validation\0").unwrap()];
-            let layer_raw_names: Vec<*const i8> = layer_names.iter().map(|l| l.as_ptr()).collect();
+            // Couches de validation (Validation Layers) - DÉSACTIVÉES POUR DEBUG
+            // let layer_names = [CStr::from_bytes_with_nul(b"VK_LAYER_KHRONOS_validation\0").unwrap()];
+            // let layer_raw_names: Vec<*const i8> = layer_names.iter().map(|l| l.as_ptr()).collect();
+            let layer_raw_names: Vec<*const i8> = Vec::new();
 
             let instance_create_info = vk::InstanceCreateInfo::builder()
                 .application_info(&app_info)

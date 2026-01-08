@@ -50,13 +50,18 @@ impl ForgeRenderer {
     pub fn begin_frame(&self, context: &ForgeContext) {
         unsafe {
             // On attend que la frame précédente soit terminée sur le GPU
-            context.device.wait_for_fences(&[self.in_flight_fence], true, u64::MAX).unwrap();
-            context.device.reset_fences(&[self.in_flight_fence]).unwrap();
+            // On utilise un Result pour éviter de paniquer si le device est perdu
+            if let Err(e) = context.device.wait_for_fences(&[self.in_flight_fence], true, u64::MAX) {
+                log::error!("⚠️ [RENDERER] Échec wait_for_fences: {:?}", e);
+                return;
+            }
+            let _ = context.device.reset_fences(&[self.in_flight_fence]);
         }
     }
 
     /// Soumet les commandes et présente l'image à l'écran
-    pub fn end_frame(&self, context: &ForgeContext, swapchain: &ForgeSwapchain, image_index: u32) {
+    /// Retourne true si un resize est nécessaire
+    pub fn end_frame(&self, context: &ForgeContext, swapchain: &ForgeSwapchain, image_index: u32) -> bool {
         unsafe {
             let wait_semaphores = [self.image_available_sem];
             let signal_semaphores = [self.render_finished_sem];
@@ -70,11 +75,22 @@ impl ForgeRenderer {
                 .command_buffers(&command_buffers)
                 .signal_semaphores(&signal_semaphores);
 
-            context.device.queue_submit(
+            // 🆕 Remplacement de .expect() par une gestion d'erreur pour éviter le crash brutal
+            match context.device.queue_submit(
                 context.queue, 
                 &[submit_info.build()], 
                 self.in_flight_fence
-            ).expect("❌ Échec soumission GPU");
+            ) {
+                Ok(_) => {},
+                Err(vk::Result::ERROR_DEVICE_LOST) => {
+                    log::error!("🔴 [RENDERER] Device Lost détecté pendant la soumission !");
+                    return true; // Déclenche un resize/reinit
+                },
+                Err(e) => {
+                    log::error!("❌ [RENDERER] Échec soumission GPU: {:?}", e);
+                    return true;
+                }
+            }
 
             // 2. PRÉSENTATION (Queue Present)
             let swapchains = [swapchain.handle];
@@ -84,13 +100,29 @@ impl ForgeRenderer {
                 .swapchains(&swapchains)
                 .image_indices(&image_indices);
 
-            swapchain.loader.queue_present(context.queue, &present_info)
-                .expect("❌ Échec présentation écran");
+            match swapchain.loader.queue_present(context.queue, &present_info) {
+                Ok(false) => false,  // Tout va bien
+                Ok(true) | Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
+                    log::info!("📏 [RENDERER] Swapchain out of date, resize requis.");
+                    true
+                },
+                Err(vk::Result::SUBOPTIMAL_KHR) => true,
+                Err(vk::Result::ERROR_DEVICE_LOST) => {
+                    log::error!("🔴 [RENDERER] Device Lost pendant la présentation !");
+                    true
+                },
+                Err(e) => {
+                    log::error!("❌ [RENDERER] Échec présentation: {:?}", e);
+                    true
+                },
+            }
         }
     }
 
     pub fn destroy(&self, context: &ForgeContext) {
         unsafe {
+            // On s'assure que le GPU est idle avant de détruire les objets de synchro
+            let _ = context.device.device_wait_idle();
             context.device.destroy_semaphore(self.image_available_sem, None);
             context.device.destroy_semaphore(self.render_finished_sem, None);
             context.device.destroy_fence(self.in_flight_fence, None);

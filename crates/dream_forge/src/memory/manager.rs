@@ -98,4 +98,51 @@ impl MemoryManager {
             .free(allocation)
             .expect("❌ Échec de la libération mémoire");
     }
+
+    /// Alloue et crée une image Vulkan
+    pub fn create_image(
+        &self,
+        info: &vk::ImageCreateInfo,
+        location: MemoryLocation,
+        name: &str,
+    ) -> (vk::Image, Allocation) {
+        let image = unsafe { 
+            self.device.create_image(info, None)
+                .expect("❌ Erreur vkCreateImage") 
+        };
+
+        let requirements = unsafe { self.device.get_image_memory_requirements(image) };
+
+        let allocation = self.allocator
+            .lock()
+            .expect("❌ Mutex Allocator corrompu")
+            .allocate(&AllocationCreateDesc {
+                name,
+                requirements,
+                location,
+                linear: false, 
+                allocation_scheme: AllocationScheme::GpuAllocatorManaged,
+            })
+            .expect("❌ Échec de l'allocation VRAM (Image)");
+
+        unsafe {
+            self.device
+                .bind_image_memory(image, allocation.memory(), allocation.offset())
+                .expect("❌ Échec vkBindImageMemory");
+        }
+
+        (image, allocation)
+    }
+
+    /// Libère une image et sa mémoire
+    pub fn destroy_image(&self, image: vk::Image, allocation: Allocation) {
+        unsafe {
+            self.device.destroy_image(image, None);
+        }
+        self.allocator
+            .lock()
+            .expect("❌ Mutex Allocator corrompu")
+            .free(allocation)
+            .expect("❌ Échec de la libération mémoire (Image)");
+    }
 }

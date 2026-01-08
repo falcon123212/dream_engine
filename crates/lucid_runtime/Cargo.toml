@@ -12,6 +12,7 @@ env_logger = { workspace = true }
 winit = { workspace = true }
 shaderc = "0.8"
 bytemuck = { version = "1.13", features = ["derive"] }
+bincode = "1.3"
 
 # Internes (Vérifie qu'ils ne sont présents qu'UNE SEULE FOIS)
 dream_forge = { path = "../dream_forge" }
